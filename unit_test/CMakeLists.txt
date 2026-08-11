@@ -24,6 +24,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
+if(MSVC)
+    # Catch2 enables multi-process compilation; serialize access to its shared PDB.
+    target_compile_options(Catch2 PRIVATE /FS)
+    target_compile_options(Catch2WithMain PRIVATE /FS)
+endif()
+
 include(Catch)
 
 add_executable(maa-algorithm-test
@@ -35,3 +41,28 @@ target_link_libraries(maa-algorithm-test PRIVATE Catch2::Catch2WithMain)
 target_include_directories(maa-algorithm-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaCore)
 
 catch_discover_tests(maa-algorithm-test TEST_PREFIX "algorithm::")
+
+set(BLACKFLOW_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaCore/Task/Roguelike/BlackFlow)
+
+add_executable(maa-blackflow-planner-test
+    MaaCore/BlackFlowPlannerTest.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowCompactStateSpace.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowModel.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowPolicy.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowSafetyGoal.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowSafetyPlanner.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowSafetyValue.cpp
+    ${BLACKFLOW_SOURCE_DIR}/BlackFlowStateSpace.cpp
+)
+
+target_compile_features(maa-blackflow-planner-test PRIVATE cxx_std_20)
+target_link_libraries(maa-blackflow-planner-test PRIVATE Catch2::Catch2WithMain)
+target_include_directories(maa-blackflow-planner-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaCore
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/MaaUtils/include
+)
+if(MSVC)
+    target_compile_options(maa-blackflow-planner-test PRIVATE /utf-8)
+endif()
+
+catch_discover_tests(maa-blackflow-planner-test TEST_PREFIX "blackflow::")
