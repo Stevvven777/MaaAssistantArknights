@@ -167,7 +167,11 @@ SafetySolveResult SafetyPlanner::solve(const SafetyProblem& problem) const
             const auto& state = problem.states[state_index];
             int best = solution.requirement(state.id);
             const SafetyAction* witness = nullptr;
-            std::size_t witness_depth = std::numeric_limits<std::size_t>::max();
+            std::string best_action_id;
+            if (const std::string* current_action = solution.action(state.id); current_action != nullptr) {
+                best_action_id = *current_action;
+            }
+            std::size_t witness_depth = solution.depth(state.id).value_or(std::numeric_limits<std::size_t>::max());
             for (const SafetyAction* action : actions_by_source[state_index]) {
                 int requirement = std::max(action->minimum_action_points_to_start, action->action_point_cost);
                 std::size_t action_depth = 0;
@@ -187,9 +191,15 @@ SafetySolveResult SafetyPlanner::solve(const SafetyProblem& problem) const
                             outcome.action_point_gain));
                     action_depth = std::max(action_depth, saturated_depth(*successor_depth));
                 }
-                if (reachable && requirement < best) {
+                const bool lower_requirement = requirement < best;
+                const bool stable_action_tie =
+                    requirement == best && (best_action_id.empty() || action->id < best_action_id);
+                const bool shallower_same_action =
+                    requirement == best && action->id == best_action_id && action_depth < witness_depth;
+                if (reachable && (lower_requirement || stable_action_tie || shallower_same_action)) {
                     best = requirement;
                     witness = action;
+                    best_action_id = action->id;
                     witness_depth = action_depth;
                 }
             }

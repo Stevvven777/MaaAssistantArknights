@@ -1117,6 +1117,13 @@ std::vector<MoveAction> enumerate_move_actions(const MapSnapshot& map, const Run
             !action.candidate.controllable || action.candidate.predicted_action_point_cost <= 0) {
             return false;
         }
+        const Node* target = map.find_node(action.candidate.target);
+        if (target != nullptr && target->type == NodeType::BattleBoss &&
+            (state.resources.white_model_birds > 0 || state.resources.painted_liberi)) {
+            // The policy can deliberately spend a processing item on the boss to trigger either bonus.
+            // Even when its AP projection matches walking, it is not semantically redundant.
+            return false;
+        }
         const MovementSpec* movement = find_movement_spec(kind);
         if (movement == nullptr || movement->effect.action_point_gain != 0 || movement->effect.hope_gain != 0 ||
             movement->effect.ingot_gain != 0) {
@@ -1411,4 +1418,3 @@ std::string_view to_string(MovementKind kind) noexcept
     return spec == nullptr ? std::string_view("unknown") : spec->id;
 }
 } // namespace asst::blackflow
-

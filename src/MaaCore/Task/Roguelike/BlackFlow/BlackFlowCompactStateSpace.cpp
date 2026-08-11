@@ -656,6 +656,13 @@ std::optional<std::vector<CompactMoveAction>>
             !action.candidate.controllable || action.candidate.predicted_action_point_cost <= 0) {
             return false;
         }
+        const auto target_index = node_index(action.candidate.target);
+        if (target_index.has_value() && m_nodes[*target_index].type == NodeType::BattleBoss &&
+            (m_run->resources.white_model_birds > 0 || m_run->resources.painted_liberi)) {
+            // The policy can deliberately spend a processing item on the boss to trigger either bonus.
+            // Even when its AP projection matches walking, it is not semantically redundant.
+            return false;
+        }
         const MovementSpec* movement = find_movement_spec(kind);
         if (movement == nullptr || movement->effect.action_point_gain != 0 || movement->effect.hope_gain != 0 ||
             movement->effect.ingot_gain != 0) {
