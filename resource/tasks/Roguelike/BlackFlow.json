@@ -1137,6 +1137,90 @@
     "BlackFlow@Roguelike@Page-Encounter": {
         "baseTask": "BlackFlow@Roguelike@StageEncounterJudgeClick"
     },
+    "BlackFlow@Roguelike@Page-Sacrifice": {
+        "baseTask": "BlackFlow@Roguelike@StageEncounterJudgeClick"
+    },
+    "BlackFlow@Roguelike@SacrificeExchangeReady": {
+        "algorithm": "OcrDetect",
+        "action": "DoNothing",
+        "roi": [150, 475, 500, 90],
+        "text": [
+            "从右侧选择一个收藏品来交换",
+            "选择一个收藏品来交换",
+            "收藏品来交换"
+        ],
+        "fullMatch": false,
+        "next": ["BlackFlow@Roguelike@SacrificeSelectFirst"]
+    },
+    "BlackFlow@Roguelike@SacrificeSelectFirst": {
+        "algorithm": "JustReturn",
+        "action": "ClickRect",
+        "specificRect": [704, 191, 70, 70],
+        "postDelay": 500,
+        "next": ["BlackFlow@Roguelike@SacrificeConfirmExchange"]
+    },
+    "BlackFlow@Roguelike@SacrificeConfirmExchange": {
+        "algorithm": "OcrDetect",
+        "action": "ClickRect",
+        "roi": [90, 480, 170, 65],
+        "text": ["已选择"],
+        "fullMatch": false,
+        "specificRect": [925, 575, 300, 48],
+        "postDelay": 1200,
+        "next": ["BlackFlow@Roguelike@SacrificeContinue"],
+        "onErrorNext": ["BlackFlow@Roguelike@RecoveryFailed"]
+    },
+    "BlackFlow@Roguelike@SacrificeContinue": {
+        "algorithm": "JustReturn",
+        "next": [
+            "BlackFlow@Roguelike@SacrificeAcceptReward",
+            "BlackFlow@Roguelike@SacrificeExpandReward",
+            "BlackFlow@Roguelike@SacrificeChooseLeave",
+            "BlackFlow@Roguelike@SacrificeAdvanceDialogue"
+        ]
+    },
+    "BlackFlow@Roguelike@SacrificeExpandReward": {
+        "algorithm": "OcrDetect",
+        "action": "ClickSelf",
+        "roi": [835, 290, 445, 100],
+        "text": ["接过藏品"],
+        "fullMatch": false,
+        "postDelay": 500,
+        "next": ["BlackFlow@Roguelike@SacrificeContinue"]
+    },
+    "BlackFlow@Roguelike@SacrificeAcceptReward": {
+        "template": "BlackFlow@Roguelike@StageEncounterLeaveConfirm.png",
+        "roi": [1069, 260, 211, 190],
+        "action": "ClickSelf",
+        "postDelay": 1000,
+        "next": ["BlackFlow@Roguelike@SacrificeContinue"]
+    },
+    "BlackFlow@Roguelike@SacrificeChooseLeave": {
+        "algorithm": "OcrDetect",
+        "action": "ClickSelf",
+        "roi": [835, 400, 445, 120],
+        "text": ["见好就收", "有点可疑"],
+        "fullMatch": false,
+        "postDelay": 500,
+        "next": ["BlackFlow@Roguelike@SacrificeConfirmLeave"]
+    },
+    "BlackFlow@Roguelike@SacrificeAdvanceDialogue": {
+        "algorithm": "JustReturn",
+        "action": "ClickRect",
+        "specificRect": [600, 320, 80, 80],
+        "postDelay": 700,
+        "maxTimes": 8,
+        "next": ["BlackFlow@Roguelike@SacrificeContinue"],
+        "exceededNext": ["BlackFlow@Roguelike@RecoveryFailed"]
+    },
+    "BlackFlow@Roguelike@SacrificeConfirmLeave": {
+        "template": "BlackFlow@Roguelike@StageEncounterLeaveConfirm.png",
+        "roi": [1069, 360, 211, 200],
+        "action": "ClickSelf",
+        "postDelay": 600,
+        "next": ["BlackFlow@Roguelike@CloseEventAfterEncounter"],
+        "reduceOtherTimes": ["BlackFlow@Roguelike@SacrificeAdvanceDialogue*8"]
+    },
     "BlackFlow@Roguelike@Page-FinalEncounter": {
         "baseTask": "BlackFlow@Roguelike@StageEncounterJudgeClick"
     },
@@ -1220,6 +1304,7 @@
         "Doc": "事件选完之后领取奖励，可能连续弹出多个藏品或资源弹窗。",
         "algorithm": "JustReturn",
         "next": [
+            "BlackFlow@Roguelike@SacrificeExchangeReady",
             "BlackFlow@Roguelike@StageEncounterReward@(BlackFlow@Roguelike@CloseCollectionContinue)",
             "BlackFlow@Roguelike@StageEncounterReward@(BlackFlow@Roguelike@CloseCollection)",
             "BlackFlow@Roguelike@CloseEventAfterEncounter"

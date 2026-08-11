@@ -20,9 +20,18 @@
             "completion_task": "BlackFlow@Roguelike@LegacyCompletion-NodePage"
         },
         {
+            "id": "sacrifice",
+            "page_intent": "default",
+            "node_types": ["sacrifice"],
+            "rank": 0,
+            "alias": "BlackFlow@Roguelike@NodeDispatchAction",
+            "task": "BlackFlow@Roguelike@Page-Sacrifice",
+            "completion_task": "BlackFlow@Roguelike@LegacyCompletion-NodePage"
+        },
+        {
             "id": "encounter",
             "page_intent": "default",
-            "node_types": ["incident", "wish", "rest", "sacrifice", "evacuate"],
+            "node_types": ["incident", "wish", "rest", "evacuate"],
             "rank": 0,
             "alias": "BlackFlow@Roguelike@NodeDispatchAction",
             "task": "BlackFlow@Roguelike@Page-Encounter",
@@ -518,6 +527,18 @@
         },
         {
             "text": "空节点",
+            "node_type": "empty"
+        },
+        {
+            "text": "空白",
+            "node_type": "empty"
+        },
+        {
+            "text": "\"空白\"",
+            "node_type": "empty"
+        },
+        {
+            "text": "林间空地",
             "node_type": "empty"
         },
         {
