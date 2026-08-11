@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <limits>
 #include <regex>
+#include <string_view>
 #include <tuple>
 #include <unordered_map>
 
@@ -99,6 +100,457 @@ StrategyGoals strategy_goals_for(
     return result;
 }
 
+template <typename T>
+std::vector<T> sorted_values(const std::unordered_set<T>& values)
+{
+    std::vector<T> result(values.begin(), values.end());
+    std::ranges::sort(result);
+    return result;
+}
+
+std::vector<json::value> ids_to_json(const std::unordered_set<NodeId>& values)
+{
+    std::vector<json::value> result;
+    result.reserve(values.size());
+    for (const NodeId value : sorted_values(values)) {
+        result.emplace_back(value);
+    }
+    return result;
+}
+
+std::vector<json::value> strings_to_json(const std::vector<std::string>& values)
+{
+    std::vector<json::value> result;
+    result.reserve(values.size());
+    for (const std::string& value : values) {
+        result.emplace_back(value);
+    }
+    return result;
+}
+
+std::vector<json::value> strings_to_json(const std::unordered_set<std::string>& values)
+{
+    return strings_to_json(sorted_values(values));
+}
+
+std::string_view node_progress_name(NodeProgress progress) noexcept
+{
+    switch (progress) {
+    case NodeProgress::Active:
+        return "active";
+    case NodeProgress::Completed:
+        return "completed";
+    case NodeProgress::Removed:
+        return "removed";
+    }
+    return "unknown";
+}
+
+std::string_view identity_state_name(NodeIdentityState state) noexcept
+{
+    switch (state) {
+    case NodeIdentityState::Classified:
+        return "classified";
+    case NodeIdentityState::Hidden:
+        return "hidden";
+    case NodeIdentityState::Unclassified:
+        return "unclassified";
+    }
+    return "unclassified";
+}
+
+std::string_view edge_knowledge_name(EdgeKnowledge knowledge) noexcept
+{
+    switch (knowledge) {
+    case EdgeKnowledge::Unknown:
+        return "unknown";
+    case EdgeKnowledge::Confirmed:
+        return "confirmed";
+    case EdgeKnowledge::Absent:
+        return "absent";
+    }
+    return "unknown";
+}
+
+std::string_view graph_layer_name(GraphLayer layer) noexcept
+{
+    switch (layer) {
+    case GraphLayer::Confirmed:
+        return "confirmed";
+    case GraphLayer::Relaxed:
+        return "relaxed";
+    }
+    return "confirmed";
+}
+
+std::string_view milestone_status_name(MilestoneStatus status) noexcept
+{
+    switch (status) {
+    case MilestoneStatus::Inactive:
+        return "inactive";
+    case MilestoneStatus::Available:
+        return "available";
+    case MilestoneStatus::Satisfied:
+        return "satisfied";
+    case MilestoneStatus::Missed:
+        return "missed";
+    case MilestoneStatus::Impossible:
+        return "impossible";
+    }
+    return "inactive";
+}
+
+std::string_view mission_viability_name(MissionViability viability) noexcept
+{
+    switch (viability) {
+    case MissionViability::Confirmed:
+        return "confirmed";
+    case MissionViability::Possible:
+        return "possible";
+    }
+    return "possible";
+}
+
+json::value fact_value_to_json(const FactValue& value)
+{
+    if (const auto* boolean = std::get_if<bool>(&value)) {
+        return *boolean;
+    }
+    if (const auto* integer = std::get_if<std::int64_t>(&value)) {
+        return *integer;
+    }
+    if (const auto* string = std::get_if<std::string>(&value)) {
+        return *string;
+    }
+    return json::array(strings_to_json(std::get<std::vector<std::string>>(value)));
+}
+
+json::object move_candidate_to_json(const MoveCandidate& move)
+{
+    std::vector<json::value> path;
+    path.reserve(move.path.size());
+    for (const NodeId node : move.path) {
+        path.emplace_back(node);
+    }
+    std::vector<json::value> possible_landings;
+    possible_landings.reserve(move.possible_landings.size());
+    for (const NodeId node : move.possible_landings) {
+        possible_landings.emplace_back(node);
+    }
+    std::vector<std::pair<NodeId, int>> sorted_gains(
+        move.landing_action_point_gains.begin(),
+        move.landing_action_point_gains.end());
+    std::ranges::sort(sorted_gains, {}, &std::pair<NodeId, int>::first);
+    std::vector<json::value> landing_gains;
+    landing_gains.reserve(sorted_gains.size());
+    for (const auto& [node, gain] : sorted_gains) {
+        landing_gains.emplace_back(json::object { { "node", node }, { "action_point_gain", gain } });
+    }
+
+    json::object result {
+        { "action_id", move.action_id },
+        { "movement", std::string(to_string(move.movement)) },
+        { "source", move.source },
+        { "target", move.target },
+        { "landing", move.landing },
+        { "path", json::array(std::move(path)) },
+        { "possible_landings", json::array(std::move(possible_landings)) },
+        { "landing_action_point_gains", json::array(std::move(landing_gains)) },
+        { "predicted_action_point_cost", move.predicted_action_point_cost },
+        { "predicted_action_point_gain", move.predicted_action_point_gain },
+        { "action_point_requirement", move.action_point_requirement },
+        { "controllable", move.controllable },
+        { "terminal_on_completion", move.terminal_on_completion },
+        { "requires_preview_verification", move.requires_preview_verification },
+        { "graph_layer", std::string(graph_layer_name(move.graph_layer)) },
+        { "uses_unconfirmed_edge", move.uses_unconfirmed_edge },
+        { "uses_inferred_edge", move.uses_inferred_edge },
+        { "first_unclassified_present", move.first_unclassified.has_value() },
+    };
+    if (move.first_unclassified.has_value()) {
+        result["first_unclassified"] = *move.first_unclassified;
+    }
+    return result;
+}
+
+json::object planned_route_step_to_json(const PlannedRouteStep& step)
+{
+    return {
+        { "move", move_candidate_to_json(step.move) },       { "action_points_before", step.action_points_before },
+        { "action_point_cost", step.action_point_cost },     { "action_point_gain", step.action_point_gain },
+        { "action_points_after", step.action_points_after },
+    };
+}
+
+json::object safety_assessment_to_json(const SafetyAssessment& assessment)
+{
+    json::object result {
+        { "required_action_points", assessment.required_action_points },
+        { "first_action_present", assessment.first_action.has_value() },
+        { "proof_depth_present", assessment.proof_depth.has_value() },
+    };
+    if (assessment.first_action.has_value()) {
+        result["first_action"] = *assessment.first_action;
+    }
+    if (assessment.proof_depth.has_value()) {
+        result["proof_depth"] = static_cast<std::int64_t>(*assessment.proof_depth);
+    }
+    return result;
+}
+
+json::object map_snapshot_to_json(const MapSnapshot& map)
+{
+    std::vector<const Node*> sorted_nodes;
+    sorted_nodes.reserve(map.nodes().size());
+    for (const auto& [id, node] : map.nodes()) {
+        (void)id;
+        sorted_nodes.emplace_back(&node);
+    }
+    std::ranges::sort(sorted_nodes, {}, [](const Node* node) { return node->id; });
+    std::vector<json::value> nodes;
+    nodes.reserve(sorted_nodes.size());
+    for (const Node* node : sorted_nodes) {
+        json::object encoded {
+            { "id", node->id },
+            { "floor", node->floor },
+            { "row", node->position.row },
+            { "column", node->position.column },
+            { "type", std::string(to_string(node->type)) },
+            { "name", node->name },
+            { "progress", std::string(node_progress_name(node->progress)) },
+            { "traversal",
+              json::object {
+                  { "blocks_walk", node->traversal.blocks_walk },
+                  { "blocks_vision", node->traversal.blocks_vision },
+                  { "repeatable", node->traversal.repeatable },
+                  { "enterable", node->traversal.enterable },
+              } },
+            { "identity_state", std::string(identity_state_name(node->identity_state)) },
+            { "identity_revealed", node->identity_revealed },
+            { "marker_type", node->marker_type },
+            { "marker_display_name", node->marker_display_name },
+            { "marker_score", node->marker_score },
+            { "badged", node->badged },
+            { "transfer_target_present", node->transfer_target.has_value() },
+        };
+        if (node->transfer_target.has_value()) {
+            encoded["transfer_target"] = *node->transfer_target;
+        }
+        nodes.emplace_back(std::move(encoded));
+    }
+
+    std::vector<const Edge*> sorted_edges;
+    sorted_edges.reserve(map.edges().size());
+    for (const Edge& edge : map.edges()) {
+        sorted_edges.emplace_back(&edge);
+    }
+    std::ranges::sort(sorted_edges, [](const Edge* lhs, const Edge* rhs) {
+        const auto lhs_key = std::minmax(lhs->first, lhs->second);
+        const auto rhs_key = std::minmax(rhs->first, rhs->second);
+        return std::tie(lhs_key.first, lhs_key.second) < std::tie(rhs_key.first, rhs_key.second);
+    });
+    std::vector<json::value> edges;
+    edges.reserve(sorted_edges.size());
+    for (const Edge* edge : sorted_edges) {
+        edges.emplace_back(
+            json::object {
+                { "first", edge->first },
+                { "second", edge->second },
+                { "knowledge", std::string(edge_knowledge_name(edge->knowledge)) },
+                { "evidence",
+                  json::object {
+                      { "probability", edge->evidence.probability },
+                      { "cnn_connected", edge->evidence.cnn_connected },
+                      { "forced_by_connectivity_constraint", edge->evidence.forced_by_connectivity_constraint },
+                      { "decision_source", edge->evidence.decision_source },
+                  } },
+            });
+    }
+    return {
+        { "revision", map.revision },
+        { "nodes", json::array(std::move(nodes)) },
+        { "edges", json::array(std::move(edges)) },
+    };
+}
+
+json::object run_state_to_json(const RunState& run)
+{
+    std::vector<std::pair<MovementKind, int>> sorted_charges(
+        run.resources.movement_charges.begin(),
+        run.resources.movement_charges.end());
+    std::ranges::sort(sorted_charges, {}, &std::pair<MovementKind, int>::first);
+    std::vector<json::value> movement_charges;
+    movement_charges.reserve(sorted_charges.size());
+    for (const auto& [movement, charges] : sorted_charges) {
+        movement_charges.emplace_back(
+            json::object { { "movement", std::string(to_string(movement)) }, { "charges", charges } });
+    }
+
+    std::vector<std::pair<MovementKind, int>> sorted_movement_costs(
+        run.costs.movement_cost_overrides.begin(),
+        run.costs.movement_cost_overrides.end());
+    std::ranges::sort(sorted_movement_costs, {}, &std::pair<MovementKind, int>::first);
+    std::vector<json::value> movement_cost_overrides;
+    movement_cost_overrides.reserve(sorted_movement_costs.size());
+    for (const auto& [movement, cost] : sorted_movement_costs) {
+        movement_cost_overrides.emplace_back(
+            json::object { { "movement", std::string(to_string(movement)) }, { "cost", cost } });
+    }
+
+    std::vector<std::pair<std::string, int>> sorted_action_costs(
+        run.costs.action_cost_overrides.begin(),
+        run.costs.action_cost_overrides.end());
+    std::ranges::sort(sorted_action_costs, {}, &std::pair<std::string, int>::first);
+    std::vector<json::value> action_cost_overrides;
+    action_cost_overrides.reserve(sorted_action_costs.size());
+    for (const auto& [action, cost] : sorted_action_costs) {
+        action_cost_overrides.emplace_back(json::object { { "action_id", action }, { "cost", cost } });
+    }
+
+    std::vector<MovementKind> sorted_expired(run.cross_floor_expired.begin(), run.cross_floor_expired.end());
+    std::ranges::sort(sorted_expired);
+    std::vector<json::value> cross_floor_expired;
+    cross_floor_expired.reserve(sorted_expired.size());
+    for (const MovementKind movement : sorted_expired) {
+        cross_floor_expired.emplace_back(std::string(to_string(movement)));
+    }
+
+    std::vector<std::pair<NodeId, NodeProgress>> sorted_progress(run.node_progress.begin(), run.node_progress.end());
+    std::ranges::sort(sorted_progress, {}, &std::pair<NodeId, NodeProgress>::first);
+    std::vector<json::value> node_progress;
+    node_progress.reserve(sorted_progress.size());
+    for (const auto& [node, progress] : sorted_progress) {
+        node_progress.emplace_back(
+            json::object { { "node", node }, { "progress", std::string(node_progress_name(progress)) } });
+    }
+
+    json::object result {
+        { "floor", run.floor },
+        { "current_node", run.current_node },
+        { "resources",
+          json::object {
+              { "action_points", run.resources.action_points },
+              { "hope", run.resources.hope },
+              { "ingots", run.resources.ingots },
+              { "seeds", run.resources.seeds },
+              { "sellable_scraps", run.resources.sellable_scraps },
+              { "white_model_birds", run.resources.white_model_birds },
+              { "painted_liberi", run.resources.painted_liberi },
+              { "movement_charges", json::array(std::move(movement_charges)) },
+          } },
+        { "active_movement_present", run.active_movement.has_value() },
+        { "costs",
+          json::object {
+              { "walk_cost_per_edge", run.costs.walk_cost_per_edge },
+              { "movement_cost_overrides", json::array(std::move(movement_cost_overrides)) },
+              { "action_cost_overrides", json::array(std::move(action_cost_overrides)) },
+              { "revision", run.costs.revision },
+          } },
+        { "resources_revision", run.resources_revision },
+        { "visited_nodes", json::array(ids_to_json(run.visited_nodes)) },
+        { "consumed_one_time_nodes", json::array(ids_to_json(run.consumed_one_time_nodes)) },
+        { "revealed_nodes", json::array(ids_to_json(run.revealed_nodes)) },
+        { "cross_floor_expired", json::array(std::move(cross_floor_expired)) },
+        { "node_progress", json::array(std::move(node_progress)) },
+        { "strategy_terminal", run.strategy_terminal },
+    };
+    if (run.active_movement.has_value()) {
+        result["active_movement"] = std::string(to_string(*run.active_movement));
+    }
+    return result;
+}
+
+json::object fact_store_to_json(const FactStore& facts)
+{
+    std::vector<std::pair<std::string, const FactValue*>> sorted;
+    sorted.reserve(facts.values().size());
+    for (const auto& [name, value] : facts.values()) {
+        sorted.emplace_back(name, &value);
+    }
+    std::ranges::sort(sorted, {}, &std::pair<std::string, const FactValue*>::first);
+    json::object result;
+    for (const auto& [name, value] : sorted) {
+        result[name] = fact_value_to_json(*value);
+    }
+    return result;
+}
+
+json::object mission_state_to_json(const MissionState& mission)
+{
+    std::vector<std::pair<std::string, MilestoneStatus>> sorted_statuses(
+        mission.milestones.begin(),
+        mission.milestones.end());
+    std::ranges::sort(sorted_statuses, {}, &std::pair<std::string, MilestoneStatus>::first);
+    json::object statuses;
+    for (const auto& [id, status] : sorted_statuses) {
+        statuses[id] = std::string(milestone_status_name(status));
+    }
+
+    std::vector<std::pair<std::string, int>> sorted_progress(
+        mission.milestone_progress.begin(),
+        mission.milestone_progress.end());
+    std::ranges::sort(sorted_progress, {}, &std::pair<std::string, int>::first);
+    json::object progress;
+    for (const auto& [id, value] : sorted_progress) {
+        progress[id] = value;
+    }
+
+    std::vector<std::pair<std::string, const std::unordered_set<NodeId>*>> sorted_nodes;
+    sorted_nodes.reserve(mission.milestone_nodes.size());
+    for (const auto& [id, nodes] : mission.milestone_nodes) {
+        sorted_nodes.emplace_back(id, &nodes);
+    }
+    std::ranges::sort(sorted_nodes, {}, &std::pair<std::string, const std::unordered_set<NodeId>*>::first);
+    json::object milestone_nodes;
+    for (const auto& [id, nodes] : sorted_nodes) {
+        milestone_nodes[id] = json::array(ids_to_json(*nodes));
+    }
+
+    return {
+        { "viability", std::string(mission_viability_name(mission.viability)) },
+        { "milestones", std::move(statuses) },
+        { "milestone_progress", std::move(progress) },
+        { "milestone_nodes", std::move(milestone_nodes) },
+    };
+}
+
+json::object planner_case_to_json(const BlackFlowPlanRequest& request)
+{
+    json::object result {
+        { "schema_version", 1 },
+        { "map", map_snapshot_to_json(*request.map) },
+        { "run", run_state_to_json(*request.run) },
+        { "resolved_policy",
+          json::object {
+              { "profile_id", request.policy->profile_id },
+              { "modules", json::array(strings_to_json(request.policy->modules)) },
+          } },
+        { "facts", fact_store_to_json(*request.facts) },
+        { "mission", mission_state_to_json(*request.mission) },
+        { "strategy_goal_nodes", json::array(ids_to_json(request.strategy_goal_nodes)) },
+        { "unresolved_hidden_end_milestone_ids",
+          json::array(strings_to_json(request.unresolved_hidden_end_milestone_ids)) },
+        { "forbidden_actions",
+          json::array(
+              request.forbidden_actions == nullptr ? std::vector<json::value> {}
+                                                   : strings_to_json(*request.forbidden_actions)) },
+        { "probe_target_present", request.probe_target.has_value() },
+        { "maximum_states", static_cast<std::int64_t>(request.maximum_states) },
+        { "route_search",
+          json::object {
+              { "time_budget_ms", request.route_search.time_budget_ms },
+              { "total_expansions", static_cast<std::int64_t>(request.route_search.total_expansions) },
+              { "expansions_per_root", static_cast<std::int64_t>(request.route_search.expansions_per_root) },
+              { "greedy_preview_depth", request.route_search.greedy_preview_depth },
+              { "safety_resource_dominance", request.route_search.safety_resource_dominance },
+          } },
+    };
+    if (request.probe_target.has_value()) {
+        result["probe_target"] = *request.probe_target;
+    }
+    return result;
+}
+
 } // namespace
 
 json::object BlackFlowStrategyResult::to_json() const
@@ -161,6 +613,7 @@ bool BlackFlowSession::initialize(std::string profile, std::string* error)
     m_persisted_image_packages = 0;
     ++m_run_revision;
     m_page_revision = 0;
+    m_proposal_sequence = 0;
     m_decision_sequence = 0;
     m_transaction_sequence = 0;
     m_artifact_sequence = 0;
@@ -587,6 +1040,101 @@ void BlackFlowSession::queue_warning(std::string code, std::string message, Diag
     Log.warn("BlackFlow routing warning", code, message);
     m_telemetry_events.emplace_back(BlackFlowTelemetryEvent { "BlackFlowRoutingWarning", details });
     request_diagnostics(trigger, std::move(details));
+}
+
+void BlackFlowSession::queue_plan_proposed(const BlackFlowPlanRequest& request, const BlackFlowPlan& plan)
+{
+    const std::string proposal_id =
+        "BF-P" + std::to_string(m_run_revision) + "-" + std::to_string(++m_proposal_sequence);
+    const PolicyDecision& decision = plan.decision;
+
+    std::vector<json::value> runners_up;
+    runners_up.reserve(decision.runners_up.size());
+    for (const MoveCandidate& runner : decision.runners_up) {
+        runners_up.emplace_back(move_candidate_to_json(runner));
+    }
+
+    std::vector<json::value> planned_route_steps;
+    planned_route_steps.reserve(decision.planned_route_steps.size());
+    for (const PlannedRouteStep& step : decision.planned_route_steps) {
+        planned_route_steps.emplace_back(planned_route_step_to_json(step));
+    }
+
+    std::vector<json::value> planned_route;
+    planned_route.reserve(decision.planned_route.size());
+    for (const NodeId node : decision.planned_route) {
+        planned_route.emplace_back(node);
+    }
+
+    std::vector<json::value> decisive_milestones;
+    decisive_milestones.reserve(decision.decisive_milestone_ids.size());
+    for (const std::string& milestone : decision.decisive_milestone_ids) {
+        decisive_milestones.emplace_back(milestone);
+    }
+
+    std::vector<std::pair<std::string, int>> sorted_planned_progress(
+        decision.planned_milestone_progress.begin(),
+        decision.planned_milestone_progress.end());
+    std::ranges::sort(sorted_planned_progress, {}, &std::pair<std::string, int>::first);
+    json::object planned_progress;
+    for (const auto& [milestone, progress] : sorted_planned_progress) {
+        planned_progress[milestone] = progress;
+    }
+
+    std::vector<std::pair<std::string, std::size_t>> sorted_rejections(
+        decision.rejection_counts.begin(),
+        decision.rejection_counts.end());
+    std::ranges::sort(sorted_rejections, {}, &std::pair<std::string, std::size_t>::first);
+    json::object rejection_counts;
+    for (const auto& [category, count] : sorted_rejections) {
+        rejection_counts[category] = static_cast<std::int64_t>(count);
+    }
+
+    json::object details {
+        { "run_revision", m_run_revision },
+        { "observation_id", m_observation_id },
+        { "proposal_id", proposal_id },
+        { "map_revision", plan.map_revision },
+        { "cost_revision", plan.cost_revision },
+        { "floor", m_run.floor },
+        { "selected", move_candidate_to_json(*decision.selected) },
+        { "runners_up", json::array(std::move(runners_up)) },
+        { "planned_route", json::array(std::move(planned_route)) },
+        { "planned_route_steps", json::array(std::move(planned_route_steps)) },
+        { "confirmed_safety", safety_assessment_to_json(plan.safety) },
+        { "relaxed_safety", safety_assessment_to_json(plan.relaxed_safety) },
+        { "reason_category", std::string(to_string(decision.reason_category)) },
+        { "reason", decision.reason },
+        { "decisive_rule_id", decision.decisive_rule_id },
+        { "decisive_milestone_id", decision.decisive_milestone_id },
+        { "decisive_milestone_ids", json::array(std::move(decisive_milestones)) },
+        { "selected_page_intent", decision.selected_page_intent },
+        { "planned_milestone_progress", std::move(planned_progress) },
+        { "total_candidates", static_cast<std::int64_t>(decision.total_candidates) },
+        { "eligible_candidates", static_cast<std::int64_t>(decision.eligible_candidates) },
+        { "rejection_counts", std::move(rejection_counts) },
+        { "confirmed_state_count", static_cast<std::int64_t>(plan.confirmed_state_count) },
+        { "relaxed_state_count", static_cast<std::int64_t>(plan.relaxed_state_count) },
+        { "route_search_expansions", static_cast<std::int64_t>(plan.route_search_expansions) },
+        { "route_search_time_exhausted", plan.route_search_time_exhausted },
+        { "route_search_expansions_exhausted", plan.route_search_expansions_exhausted },
+    };
+    if (m_diagnostics.level == DiagnosticLevel::Full) {
+        details["planner_case"] = planner_case_to_json(request);
+    }
+
+    Log.info(
+        "BlackFlow plan proposed",
+        proposal_id,
+        "target",
+        decision.selected->target,
+        "movement",
+        to_string(decision.selected->movement),
+        "required AP",
+        decision.selected->action_point_requirement,
+        "route expansions",
+        plan.route_search_expansions);
+    m_telemetry_events.emplace_back(BlackFlowTelemetryEvent { "BlackFlowPlanProposed", std::move(details) });
 }
 
 void BlackFlowSession::queue_decision()
@@ -1187,6 +1735,9 @@ BlackFlowPlan BlackFlowSession::plan(std::string* error)
         request.forbidden_actions = &m_unreachable_actions;
         request.probe_target = m_pending_probe_target;
         result = BlackFlowPlanner {}.plan(request);
+        if (result) {
+            queue_plan_proposed(request, result);
+        }
         if (result && m_pending_probe_target.has_value() &&
             result.decision.selected->target != *m_pending_probe_target) {
             m_pending_probe_target.reset();

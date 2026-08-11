@@ -207,6 +207,7 @@ private:
     void finalize_entered_node(const PageExecutionContext& context, bool page_completed);
     void queue_map_summary(const PerceptionSummary& summary);
     void queue_warning(std::string code, std::string message, DiagnosticTrigger trigger);
+    void queue_plan_proposed(const BlackFlowPlanRequest& request, const BlackFlowPlan& plan);
     void queue_decision();
     void queue_node_resolution(const PageExecutionContext& context);
     void request_diagnostics(DiagnosticTrigger trigger, json::object snapshot = {});
@@ -242,6 +243,7 @@ private:
     std::size_t m_persisted_image_packages = 0;
     std::uint64_t m_run_revision = 0;
     std::uint64_t m_page_revision = 0;
+    std::uint64_t m_proposal_sequence = 0;
     std::uint64_t m_decision_sequence = 0;
     std::uint64_t m_transaction_sequence = 0;
     std::uint64_t m_artifact_sequence = 0;
