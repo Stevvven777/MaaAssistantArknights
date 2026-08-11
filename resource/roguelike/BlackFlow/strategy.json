@@ -1020,6 +1020,143 @@
             ]
         },
         {
+            "id": "dataset_collection_route",
+            "description": "实机数据采集：在安全可撤离的前提下优先经过羽瞰点和少量非战斗节点，并保留前三层出口",
+            "rules": [
+                {
+                    "id": "dataset_prefer_optional_noncombat",
+                    "kind": "prefer",
+                    "tier": "risk",
+                    "rank": 0,
+                    "candidate_if": {
+                        "all": [
+                            {
+                                "fact": "candidate.combat",
+                                "op": "eq",
+                                "value": false
+                            },
+                            {
+                                "fact": "candidate.strategy_end",
+                                "op": "eq",
+                                "value": false
+                            },
+                            {
+                                "any": [
+                                    {
+                                        "fact": "candidate.node_type",
+                                        "op": "eq",
+                                        "value": "light"
+                                    },
+                                    {
+                                        "fact": "candidate.node_type",
+                                        "op": "eq",
+                                        "value": "incident"
+                                    },
+                                    {
+                                        "fact": "candidate.node_type",
+                                        "op": "eq",
+                                        "value": "rest"
+                                    },
+                                    {
+                                        "fact": "candidate.node_type",
+                                        "op": "eq",
+                                        "value": "wish"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            ],
+            "milestones": [
+                {
+                    "id": "dataset_floor1_light",
+                    "description": "第一层优先经过能够揭示至少两个未知节点的羽瞰点",
+                    "kind": "preferred",
+                    "floor_window": [1, 1],
+                    "rank": 0,
+                    "count": 1,
+                    "weight": 10,
+                    "minimum_unknown_nodes_revealed": 2,
+                    "selector": {
+                        "node_types": ["light"]
+                    }
+                },
+                {
+                    "id": "dataset_floor1_noncombat",
+                    "description": "第一层额外经过至多三个非战斗节点以增加揭图后的地图样本",
+                    "kind": "preferred",
+                    "floor_window": [1, 1],
+                    "rank": 1,
+                    "count": 3,
+                    "weight": 4,
+                    "selector": {
+                        "node_types": [
+                            "incident",
+                            "rest",
+                            "wish"
+                        ]
+                    }
+                },
+                {
+                    "id": "dataset_floor1_final",
+                    "end": true,
+                    "floor_window": [1, 1],
+                    "rank": 2,
+                    "selector": {
+                        "node_types": ["final", "evacuate"]
+                    }
+                },
+                {
+                    "id": "dataset_floor2_light",
+                    "description": "第二层优先经过能够揭示至少两个未知节点的羽瞰点",
+                    "kind": "preferred",
+                    "floor_window": [2, 2],
+                    "rank": 0,
+                    "count": 1,
+                    "weight": 10,
+                    "minimum_unknown_nodes_revealed": 2,
+                    "selector": {
+                        "node_types": ["light"]
+                    }
+                },
+                {
+                    "id": "dataset_floor2_noncombat",
+                    "description": "第二层额外经过至多三个非战斗节点以增加揭图后的地图样本",
+                    "kind": "preferred",
+                    "floor_window": [2, 2],
+                    "rank": 1,
+                    "count": 3,
+                    "weight": 4,
+                    "selector": {
+                        "node_types": [
+                            "incident",
+                            "rest",
+                            "wish"
+                        ]
+                    }
+                },
+                {
+                    "id": "dataset_floor2_final",
+                    "end": true,
+                    "floor_window": [2, 2],
+                    "rank": 2,
+                    "selector": {
+                        "node_types": ["final", "evacuate"]
+                    }
+                },
+                {
+                    "id": "dataset_floor3_final",
+                    "end": true,
+                    "floor_window": [3, 3],
+                    "rank": 2,
+                    "selector": {
+                        "node_types": ["final", "evacuate"]
+                    }
+                }
+            ]
+        },
+        {
             "id": "baby_animal_route",
             "rules": [
                 {
@@ -1627,6 +1764,35 @@
                 }
             ],
             "failure_action": "restart_current_run"
+        },
+        {
+            "id": "dataset_collection",
+            "description": "实机地图数据采集：一二层优先非战斗揭图，第三层首个完整视野观测被接受后停止；不要求揭示全部隐藏节点",
+            "modules": ["common_navigation", "dataset_collection_route"],
+            "terminal_rules": [
+                {
+                    "id": "dataset_third_floor_map_collected",
+                    "when": {
+                        "all": [
+                            {
+                                "fact": "current_floor",
+                                "op": "ge",
+                                "value": 3
+                            },
+                            {
+                                "fact": "map_full_coverage",
+                                "op": "eq",
+                                "value": true
+                            }
+                        ]
+                    },
+                    "outcome": "dataset_collected",
+                    "reason": "third_floor_map_observed",
+                    "succeeded": true,
+                    "next_action": "stop_run"
+                }
+            ],
+            "failure_action": "stop_run"
         },
         {
             "id": "baby_animal",
